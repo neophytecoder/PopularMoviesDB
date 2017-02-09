@@ -8,7 +8,7 @@ import android.view.ViewGroup;
 
 import org.neophyte.popularmovie.popularmovie.R;
 import org.neophyte.popularmovie.popularmovie.network.MovieDatabase;
-import org.neophyte.popularmovie.popularmovie.network.Movies;
+import org.neophyte.popularmovie.popularmovie.network.pojo.Movies;
 
 import java.net.URL;
 import java.util.List;
@@ -21,9 +21,11 @@ public class MovieImageAdapater extends RecyclerView.Adapter<MovieImageViewHolde
     private MovieDatabase mMovieDatabase;
     private List<Movies> mMovies;
     private Context mContext;
+    private ListItemClickListener mListItemClickListener;
 
-    public MovieImageAdapater(String apiKey) {
+    public MovieImageAdapater(String apiKey, ListItemClickListener listItemClickListener) {
         init(apiKey);
+        mListItemClickListener = listItemClickListener;
     }
 
     private void init(String apiKey) {
@@ -31,7 +33,6 @@ public class MovieImageAdapater extends RecyclerView.Adapter<MovieImageViewHolde
             mMovieDatabase = new MovieDatabase(apiKey);
             mMovieDatabase.setOnResult(this);
         }
-        mMovieDatabase.execute();
     }
 
     @Override
@@ -39,7 +40,15 @@ public class MovieImageAdapater extends RecyclerView.Adapter<MovieImageViewHolde
         mContext = parent.getContext();
         LayoutInflater inflater = LayoutInflater.from(mContext);
         View view = inflater.inflate(R.layout.image_list_item, parent, false);
-        MovieImageViewHolder holder = new MovieImageViewHolder(view);
+        final MovieImageViewHolder holder = new MovieImageViewHolder(view);
+        view.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                int adapterPosition = holder.getAdapterPosition();
+                Movies aMovie = mMovies.get(adapterPosition);
+                mListItemClickListener.onClickItem(aMovie);
+            }
+        });
         return holder;
     }
 
@@ -49,7 +58,13 @@ public class MovieImageAdapater extends RecyclerView.Adapter<MovieImageViewHolde
         URL posterPath = MovieDatabase.buildImageString(imagePath);
         if (posterPath != null) {
             holder.bind(mContext, posterPath.toString());
+
+            if (position == getItemCount() - 1) {
+                mMovieDatabase.nextPage();
+                mMovieDatabase.reinit();
+            }
         }
+
     }
 
     @Override
@@ -64,5 +79,14 @@ public class MovieImageAdapater extends RecyclerView.Adapter<MovieImageViewHolde
     public void onResult(List<Movies> movies) {
         this.mMovies = movies;
         notifyDataSetChanged();
+    }
+
+    public void changeSortByCriteria(int criteria) {
+        mMovieDatabase.changeSortCriteria(criteria);
+    }
+
+
+    public interface ListItemClickListener {
+        public void onClickItem(Movies movie);
     }
 }

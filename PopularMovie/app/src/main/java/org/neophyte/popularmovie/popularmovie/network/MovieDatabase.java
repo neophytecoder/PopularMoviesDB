@@ -7,35 +7,56 @@ import android.util.Log;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import org.neophyte.popularmovie.popularmovie.network.pojo.MovieResult;
+import org.neophyte.popularmovie.popularmovie.network.pojo.Movies;
+
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Created by juankarsten on 2/8/17.
  */
 
-public class MovieDatabase extends AsyncTask<String, Void, MovieResult>{
+public class MovieDatabase{
+    public static final int TOP_RATED = 1;
+    public static final int POPULARITY = 2;
+    private int currentSortBy;
 
-    private static final String BASE_URL = "https://api.themoviedb.org/3/";
-    private static final String MOVIE_ENDPOINT = "movie/popular";
-    private static final String PARAM_API = "api_key";
-
-    private static final String BASE_IMAGE_URL = "https://image.tmdb.org/t/p/";
-    private static final String PATH_SIZE = "w500";
+    private int mCurrentPage;
 
     private String mApiKey;
-    MovieResult mResult;
+    List<Movies> mMovies;
     private OnResult onResult;
 
     public MovieDatabase(String apiKey) {
-        this.mApiKey = apiKey;
+        mApiKey = apiKey;
+        mCurrentPage = 1;
+        mMovies = new ArrayList<>();
+        currentSortBy = POPULARITY;
+        reinit();
+    }
+
+    public void changeSortCriteria(int criteria) {
+        if (currentSortBy != criteria) {
+            currentSortBy = criteria;
+            mMovies.clear();
+            mCurrentPage = 1;
+            reinit();
+        }
     }
 
     private URL buildPopularMovieUrl() {
-        Uri builtUri = Uri.parse(BASE_URL + MOVIE_ENDPOINT).buildUpon()
-                .appendQueryParameter(PARAM_API, mApiKey)
+        String movieEndPoint = MovieDatabaseEndpoint.MOVIE_POPULAR_ENDPOINT;
+        if (currentSortBy == TOP_RATED) {
+            movieEndPoint = MovieDatabaseEndpoint.MOVIE_TOP_RATED_ENDPOINT;
+        }
+        Uri builtUri = Uri.parse(MovieDatabaseEndpoint.BASE_URL).buildUpon()
+                .appendEncodedPath(movieEndPoint)
+                .appendQueryParameter(MovieDatabaseEndpoint.PARAM_API, mApiKey)
+                .appendQueryParameter(MovieDatabaseEndpoint.PARAM_PAGE, mCurrentPage+"")
                 .build();
 
         URL url = null;
@@ -48,41 +69,28 @@ public class MovieDatabase extends AsyncTask<String, Void, MovieResult>{
         return url;
     }
 
+    public void nextPage() {
+        mCurrentPage += 1;
+    }
+
+    public void resetDatabase() {
+        mCurrentPage = 1;
+        mMovies.clear();
+    }
 
 
     public void setOnResult(OnResult onResult) {
         this.onResult = onResult;
     }
 
-    @Override
-    protected MovieResult doInBackground(String... params) {
-        URL url = buildPopularMovieUrl();
-
-        try {
-            String response = NetworkUtils.getResponseFromHttpUrl(url);
-            Log.d(MovieDatabase.class.getName(), response);
-
-            Gson gson = new GsonBuilder().create();
-            mResult = gson.fromJson(response, MovieResult.class);
-            Log.d(MovieDatabase.class.getName(), mResult.toString());
-
-        } catch (IOException e) {
-            Log.d(MovieDatabase.class.getName(), e.toString());
-        }
-
-        return mResult;
-    }
-
-    @Override
-    protected void onPostExecute(MovieResult movieResult) {
-        if (mResult != null) {
-            onResult.onResult(mResult.results);
-        }
+    public void reinit() {
+        NetworkMovieDatabase networkMovieDatabase = new NetworkMovieDatabase();
+        networkMovieDatabase.execute();
     }
 
     public static URL buildImageString(String image) {
-        Uri builtUri = Uri.parse(BASE_IMAGE_URL  ).buildUpon()
-                .appendPath(PATH_SIZE)
+        Uri builtUri = Uri.parse(MovieDatabaseEndpoint.BASE_IMAGE_URL  ).buildUpon()
+                .appendPath(MovieDatabaseEndpoint.PATH_SIZE)
                 .appendEncodedPath(image)
                 .build();
 
@@ -96,8 +104,40 @@ public class MovieDatabase extends AsyncTask<String, Void, MovieResult>{
         return url;
     }
 
-    public static interface OnResult {
-        public void onResult(List<Movies> movies);
+    public interface OnResult {
+        void onResult(List<Movies> movies);
+    }
+
+    private class NetworkMovieDatabase extends AsyncTask<Void, Void, MovieResult> {
+        @Override
+        protected MovieResult doInBackground(Void... params) {
+            URL url = buildPopularMovieUrl();
+
+            MovieResult mResult = null;
+            try {
+                String response = NetworkUtils.getResponseFromHttpUrl(url);
+                Log.d(MovieDatabase.class.getName(), response);
+
+                Gson gson = new GsonBuilder().create();
+                mResult = gson.fromJson(response, MovieResult.class);
+                Log.d(MovieDatabase.class.getName(), mResult.toString());
+                if (mResult != null) {
+                    mMovies.addAll(mResult.results);
+                    //nextPage();
+                }
+            } catch (IOException e) {
+                Log.d(MovieDatabase.class.getName(), e.toString());
+            }
+
+            return mResult;
+        }
+
+        @Override
+        protected void onPostExecute(MovieResult movieResult) {
+            if (mMovies != null) {
+                onResult.onResult(mMovies);
+            }
+        }
     }
 
 }

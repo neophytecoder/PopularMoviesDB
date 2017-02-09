@@ -1,6 +1,4 @@
-package org.neophyte.popularmovie.popularmovie.network;
-
-import android.graphics.Movie;
+package org.neophyte.popularmovie.popularmovie.network.pojo;
 
 import java.util.List;
 
